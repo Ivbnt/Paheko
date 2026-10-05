@@ -1,0 +1,63 @@
+name: paheko
+
+x-paheko: &paheko
+  build:
+    context: .
+    args:
+      PAHEKO_VERSION: ${PAHEKO_VERSION:-1.3.23}
+      PAHEKO_SHA256: ${PAHEKO_SHA256:-de094f790bb4448bed641d548e0a3ec85b5ffe5d4a26cb9ddd01b8cb5a400434}
+  image: paheko-local:${PAHEKO_VERSION:-1.3.23}
+  env_file:
+    - path: .env
+      required: false
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  paheko:
+    <<: *paheko
+    ports:
+      - "${PAHEKO_BIND:-127.0.0.1}:${PAHEKO_PORT:-8080}:80"
+    volumes:
+      - paheko-data:/var/lib/paheko
+
+  # Tâches planifiées, file d'envoi des e-mails et sauvegardes automatiques
+  cron:
+    <<: *paheko
+    command: ["paheko-scheduler"]
+    healthcheck:
+      disable: true
+    volumes:
+      - paheko-data:/var/lib/paheko
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+    depends_on:
+      paheko:
+        condition: service_healthy
+
+  # HTTPS automatique (Let's Encrypt). Activer avec : docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      PAHEKO_DOMAIN: ${PAHEKO_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      paheko:
+        condition: service_healthy
+
+volumes:
+  paheko-data:
+  caddy-data:
+  caddy-config:

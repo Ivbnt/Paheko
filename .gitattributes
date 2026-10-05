@@ -1,0 +1,2 @@
+# Les scripts doivent garder des fins de ligne Unix, même clonés sous Windows
+* text=auto eol=lf
